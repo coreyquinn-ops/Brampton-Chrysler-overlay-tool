@@ -3,15 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <title>Chrysler Overlay Tool</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
+        /* ---------- Brand font: Proxima Nova ----------
+           These three .woff2 files must sit in the same folder as index.html. */
+        @font-face {
+            font-family: 'Proxima Nova';
+            src: url('ProximaNova-Regular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: block;
+        }
+        @font-face {
+            font-family: 'Proxima Nova';
+            src: url('ProximaNova-Semibold.woff2') format('woff2');
+            font-weight: 600;
+            font-style: normal;
+            font-display: block;
+        }
+        @font-face {
+            font-family: 'Proxima Nova';
+            src: url('ProximaNova-Bold.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+            font-display: block;
+        }
+
         :root {
             --brand-black: #000000;
             --bg-gray: #f0f2f5;
+            --brand-font: 'Proxima Nova', 'Helvetica Neue', Arial, sans-serif;
         }
 
         body {
-            font-family: 'Poppins', sans-serif;
+            font-family: var(--brand-font);
             background: var(--bg-gray);
             display: flex;
             flex-direction: column;
@@ -35,6 +59,7 @@
             color: var(--brand-black);
             text-transform: uppercase;
             letter-spacing: 1px;
+            font-weight: 700;
         }
 
         .controls {
@@ -65,18 +90,18 @@
             border-radius: 8px;
             border: 2px solid var(--brand-black);
             font-size: 24px;
-            font-weight: 800;
+            font-weight: 700;
             width: 180px;
             text-align: center;
             outline: none;
-            font-family: 'Poppins', sans-serif;
+            font-family: var(--brand-font);
         }
 
         /* Descriptor field is wide and left-aligned since it holds a phrase */
         #descriptorInput {
             width: 420px;
             font-size: 16px;
-            font-weight: 700;
+            font-weight: 600;
             text-align: left;
         }
 
@@ -103,7 +128,7 @@
 
         .meta {
             font-size: 11px;
-            font-weight: 700;
+            font-weight: 600;
             color: #888;
             margin-top: 6px;
             min-height: 16px;
@@ -118,9 +143,10 @@
             padding: 16px 32px;
             border-radius: 8px;
             font-size: 16px;
-            font-weight: 800;
+            font-weight: 700;
             cursor: pointer;
             transition: 0.2s;
+            font-family: var(--brand-font);
         }
 
         button:hover {
@@ -178,35 +204,53 @@
     const charMeta = document.getElementById('charMeta');
     const downloadBtn = document.getElementById('downloadBtn');
 
-    /* ---------- Rate number (unchanged) ---------- */
+    const BRAND_FONT = "'Proxima Nova'";
+
+    /* ---------- Rate number ----------
+       Sizes are cap-height matched to the previous Poppins build:
+       Poppins cap height is 0.70em, Proxima Nova is 0.667em, so every
+       size is scaled by ~1.049 to keep the artwork visually identical. */
     const X_POS = 810;
     const Y_POS = 120;
-    const FONT_SIZE = 135;
+    const FONT_SIZE = 142;      // was 135px Poppins
+    const RATE_WEIGHT = 700;    // Proxima Nova Bold
 
     /* ---------- Rate descriptor ----------
        Right-aligned so it ends flush with the "%*" glyph above the rate.
        Auto-shrinks to stay inside DESC_MAX_W, which is what lets a single
        field handle 21 -> 37+ characters without overflowing the divider. */
-    const DESC_RIGHT_X = 1219;   // right edge of the text block
-    const DESC_Y       = 27;     // vertical centre of the text
-    const DESC_MAX_W   = 440;    // usable width between divider bar and right edge
-    const DESC_FONT_MAX = 30;    // used when the phrase is short (e.g. "Lease From As Low As")
-    const DESC_FONT_MIN = 15;    // hard floor for very long phrases
+    const DESC_RIGHT_X  = 1219; // right edge of the text block
+    const DESC_Y        = 27;   // vertical centre of the text
+    const DESC_MAX_W    = 440;  // usable width between divider bar and right edge
+    const DESC_FONT_MAX = 31;   // used when the phrase is short ("Lease From As Low As")
+    const DESC_FONT_MIN = 16;   // hard floor for very long phrases
+    const DESC_WEIGHT   = 700;  // Proxima Nova Bold; set to 600 for Semibold
 
     let templateImg = new Image();
     templateImg.src = "template.png";
     templateImg.onload = () => draw();
 
-    // Wait for Poppins so measurement/render use the real font, not a fallback
-    if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(() => draw());
+    /* Canvas ignores @font-face until the face is actually downloaded, so load
+       the weights explicitly and redraw once they're ready. Without this the
+       first paint silently falls back to Arial. */
+    let fontsReady = false;
+    if (document.fonts && document.fonts.load) {
+        Promise.all([
+            document.fonts.load(`600 40px ${BRAND_FONT}`),
+            document.fonts.load(`700 40px ${BRAND_FONT}`)
+        ]).then(() => {
+            fontsReady = true;
+            draw();
+        }).catch(() => draw());
+    } else {
+        fontsReady = true;
     }
 
     /* Find the largest font size (within bounds) that fits maxWidth. */
     function fitFontSize(text, maxWidth, maxSize, minSize, weight) {
         let size = maxSize;
         while (size > minSize) {
-            ctx.font = `${weight} ${size}px 'Poppins'`;
+            ctx.font = `${weight} ${size}px ${BRAND_FONT}`;
             if (ctx.measureText(text).width <= maxWidth) return size;
             size -= 0.5;
         }
@@ -222,8 +266,8 @@
         // --- Descriptor line ---
         const desc = descriptorInput.value.trim();
         if (desc !== "") {
-            const size = fitFontSize(desc, DESC_MAX_W, DESC_FONT_MAX, DESC_FONT_MIN, 700);
-            ctx.font = `700 ${size}px 'Poppins'`;
+            const size = fitFontSize(desc, DESC_MAX_W, DESC_FONT_MAX, DESC_FONT_MIN, DESC_WEIGHT);
+            ctx.font = `${DESC_WEIGHT} ${size}px ${BRAND_FONT}`;
             ctx.fillStyle = "white";
             ctx.textAlign = "right";
             ctx.textBaseline = "middle";
@@ -245,7 +289,7 @@
         // --- Rate number ---
         if (priceInput.value.trim() !== "") {
             ctx.fillStyle = "white";
-            ctx.font = `800 ${FONT_SIZE}px 'Poppins'`;
+            ctx.font = `${RATE_WEIGHT} ${FONT_SIZE}px ${BRAND_FONT}`;
             ctx.textAlign = "left";
             ctx.textBaseline = "middle";
             ctx.fillText(priceInput.value, X_POS, Y_POS);
@@ -257,8 +301,10 @@
     function updateMeta() {
         const n = descriptorInput.value.trim().length;
         const over = n > 44;
-        charMeta.textContent = `Descriptor: ${n} character${n === 1 ? '' : 's'}` +
+        let msg = `Descriptor: ${n} character${n === 1 ? '' : 's'}` +
             (n === 0 ? '' : over ? ' — too long, shorten the phrase' : ' — fits');
+        if (!fontsReady) msg += '   ·   loading Proxima Nova…';
+        charMeta.textContent = msg;
         charMeta.classList.toggle('warn', over);
     }
 
